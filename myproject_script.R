@@ -19,3 +19,5 @@ head(mydata)
 newdata <- mydata[, c("gender", "age", "hypertension", "heart_disease", "work_type", "Residence_type", "avg_glucose_level", "bmi", "smoking_status")]
 
 head(newdata)
+
+

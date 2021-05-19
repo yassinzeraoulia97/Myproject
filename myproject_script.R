@@ -20,4 +20,6 @@ newdata <- mydata[, c("gender", "age", "hypertension", "heart_disease", "work_ty
 
 head(newdata)
 
+3
+
 

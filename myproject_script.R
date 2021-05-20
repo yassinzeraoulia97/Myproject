@@ -206,3 +206,93 @@ stroke_oversampled %>%
   summarize(n = n()) %>%
   mutate(prop = round(n / sum(n), 2))
 
+stroke_data_final <- stroke_oversampled %>% select(-id)
+
+# total number of observations
+n_obs <- nrow(stroke_data_final)
+
+# shuffle the dataset randomly
+permuted_rows <- sample(n_obs)
+
+# Randomly order data
+stroke_shuffled <- stroke_data_final[permuted_rows,]
+
+# Identify row to split on
+split <- round(n_obs * 0.7)
+
+# Create train
+train <- stroke_shuffled[1:split,]
+
+# Create test
+test <- stroke_shuffled[(split + 1):nrow(stroke_shuffled),]
+
+# check if train is really 70% of the original 
+nrow(train) / nrow(stroke_data_final)
+
+###model building 
+
+# custom train control
+myControl <- trainControl(
+  method = "cv", 
+  number = 10,
+  summaryFunction = twoClassSummary,
+  classProbs = TRUE,
+  verboseIter = TRUE
+)
+
+myGrid <- expand.grid(
+  alpha = c(0,1),
+  lambda = seq(0.00001, 1, length = 20)
+)
+
+set.seed(42)
+glmnet_model <- train(
+  stroke ~ .,
+  train,
+  method = "glmnet",
+  tuneGrid = myGrid,
+  trControl = myControl
+  
+)
+
+plot(glmnet_model)
+
+max(glmnet_model[["results"]]$ROC)
+
+mm_test <- test %>% select(-stroke)
+
+glmnet_pred <- predict(glmnet_model, newdata = mm_test) 
+
+confusionMatrix(glmnet_pred, factor(test[["stroke"]]), positive = "yes")
+
+
+######random forest
+
+rfGrid <- data.frame(
+  .mtry = c(2,3,5,6),
+  .splitrule = "gini",
+  .min.node.size = 5
+)
+
+rfControl <- trainControl(
+  method = "oob",
+  number = 5,
+  verboseIter = TRUE
+)
+
+rf_model <- train(
+  stroke ~ .,
+  train,
+  method = "ranger",
+  tuneLength = 3,
+  tuneGrid = rfGrid,
+  trControl = rfControl
+)
+
+rf_model
+#Out-of-bag error is low for the random forest model, it's accuracy is higher than baseline for all of the mtry parameters.
+##Let's evaluate it on the test dataset.
+
+rf_pred <- predict(rf_model, newdata = mm_test) 
+
+confusionMatrix(rf_pred, factor(test[["stroke"]]), positive = "yes")

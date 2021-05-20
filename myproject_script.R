@@ -145,7 +145,7 @@ p1 + p2
 ###########################################################
 stroke_data_imp2 <- stroke_data_imp %>%
   fill(smoking_status) %>%
-  #mutate(across(c(smoking_status)), replace(., is.na(.), "never smoked")) %>%
+  mutate(across(c(smoking_status)), replace(., is.na(.), "never smoked")) %>%
   mutate(across(c(hypertension, heart_disease), factor),
          across(where(is.character), as.factor),
          across(where(is.factor), as.numeric),
@@ -229,44 +229,9 @@ test <- stroke_shuffled[(split + 1):nrow(stroke_shuffled),]
 # check if train is really 70% of the original 
 nrow(train) / nrow(stroke_data_final)
 
-###model building 
-
-# custom train control
-myControl <- trainControl(
-  method = "cv", 
-  number = 10,
-  summaryFunction = twoClassSummary,
-  classProbs = TRUE,
-  verboseIter = TRUE
-)
-
-myGrid <- expand.grid(
-  alpha = c(0,1),
-  lambda = seq(0.00001, 1, length = 20)
-)
-
-set.seed(42)
-glmnet_model <- train(
-  stroke ~ .,
-  train,
-  method = "glmnet",
-  tuneGrid = myGrid,
-  trControl = myControl
-  
-)
-
-plot(glmnet_model)
-
-max(glmnet_model[["results"]]$ROC)
-
-mm_test <- test %>% select(-stroke)
-
-glmnet_pred <- predict(glmnet_model, newdata = mm_test) 
-
-confusionMatrix(glmnet_pred, factor(test[["stroke"]]), positive = "yes")
-
 
 ######random forest
+mm_test <- test %>% select(-stroke)
 
 rfGrid <- data.frame(
   .mtry = c(2,3,5,6),
@@ -296,3 +261,4 @@ rf_model
 rf_pred <- predict(rf_model, newdata = mm_test) 
 
 confusionMatrix(rf_pred, factor(test[["stroke"]]), positive = "yes")
+

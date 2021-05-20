@@ -1,0 +1,113 @@
+---
+title: "My_own_Project"
+author: "Yassin Zeraoulia"
+date: "20 5 2021"
+output: pdf_document
+---
+
+#Introduction
+
+According to the World Health Organization (WHO) stroke is the 2nd leading cause of death globally, responsible for approximately 11% of total deaths.
+This dataset is used to predict whether a patient is likely to get stroke based on the input parameters like gender, age, various diseases, and smoking status. Each row in the data provides relavant information about the patient.
+
+VAriable inside the data set:
+1) id: unique identifier
+2) gender: "Male", "Female" or "Other"
+3) age: age of the patient
+4) hypertension: 0 if the patient doesn't have hypertension, 1 if the patient has hypertension
+5) heart_disease: 0 if the patient doesn't have any heart diseases, 1 if the patient has a heart disease
+6) ever_married: "No" or "Yes"
+7) work_type: "children", "Govt_jov", "Never_worked", "Private" or "Self-employed"
+8) Residence_type: "Rural" or "Urban"
+9) avg_glucose_level: average glucose level in blood
+10) bmi: body mass index
+11) smoking_status: "formerly smoked", "never smoked", "smokes" or "Unknown"*
+12) stroke: 1 if the patient had a stroke or 0 if not
+
+In order to predict effectively if a person is more likely to have a stroke we'll have to take into consideration relevant variables of the data set, some of them are not relevant because they don't have impact on the physiology of the human being.
+Next we'll have to gain some insight from summary statistics of the data set and from the plots that will help visualize some correlation and trends of the variable of the data set.
+Finally we'll implement some predictive model and test them to asses which model is able to predict whit satisfactory accuracy strokes in the population. 
+The first and most simple model that will be implemented is logistic regression while the second one will be based on K-nearest neighbors algorithm. 
+
+
+
+```{r Introduction, include=FALSE}
+#Loading the data set
+
+
+library(readr)
+healthcare_dataset_stroke_data <- read_csv("healthcare-dataset-stroke-data.csv")
+
+
+#exploration of the data set and rename the data set
+
+
+mydata <- healthcare_dataset_stroke_data
+
+nrow(mydata)
+ncol(mydata)
+head(mydata)
+
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+We start by removing unnecessary variable inside the dataset and by checking wheter NA are present in the data set.
+
+
+```{r cleaning data set}
+#remove unnecessary columns 
+
+newdata <- mydata[, c("gender", "age", "hypertension", "heart_disease", "work_type", "Residence_type", "avg_glucose_level", "bmi", "smoking_status", "stroke")]
+
+head(newdata)
+
+#Check N.A inside different variables
+
+anyNA.data.frame(newdata)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Now we can gain some initial insight on the variables inside the data set by generating a summury statistics of the data set:
+
+
+```{r summary statistics}
+
+#Summary statistics for each variable inside the data set 
+
+summary(newdata)
+# converting the character vector to numeric and computing the mean
+
+newdata$bmi <- (as.numeric(newdata$bmi))
+
+mean(newdata$bmi, na.rm = TRUE)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The variable $bmi had to be converted into numeric to compute the mean, there are some NA in this numeric vector.
+
+#Observations :
+
+1) The average age is 43
+
+2) The average bmi is 28.89 
+ 
+3) The minimum age is questionable
+
+4) Average glucose level is 106 
+
+
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

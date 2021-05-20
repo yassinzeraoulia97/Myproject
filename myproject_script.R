@@ -99,7 +99,68 @@ ggplot(stroke_data_clean, aes(x = bmi)) +
   labs(title = "Distribution of BMI") +
   theme_bigfont
 
-#Only 5% of the people inside the dataset had a stroke 
+
+
+# impute median and bind shadow to evaluate imputation
+stroke_data_imp <- bind_shadow(stroke_data_clean) %>% 
+  impute_median_at(.vars = c("bmi")) %>%
+  add_label_shadow()
+
+# Explore the median values in bmi in the imputed dataset
+ggplot(stroke_data_imp, 
+       aes(x = bmi_NA, y = bmi)) + 
+  geom_boxplot() +
+  labs(title = "Comparison, no-missing vs. imputed values for BMI") +
+  theme_bigfont
+
+
+stroke_data_imp <- impute_median_at(stroke_data_clean, .vars = c("bmi"))
+
+
+fig(16,8)
+
+p1 <- ggplot(stroke_data_imp, 
+             aes(x = smoking_status, fill = smoking_status)) + 
+  geom_bar() +
+  labs(title = "Before filling in NA values in smoking_status") +
+  theme(legend.position = "none") +
+  theme_bigfont
+
+# fill imputation based on previous unique value in "smoking_status" column
+after <- stroke_data_imp %>% 
+  fill(smoking_status)
+# mode imputation which leads to worse performance of models:
+#mutate(across(c(smoking_status)), replace(., is.na(.), "never smoked"))
+
+# Explore the median values in bmi in the imputed dataset
+p2 <- ggplot(after, 
+             aes(x = smoking_status, fill = smoking_status)) + 
+  geom_bar() +
+  labs(title = "After filling in NA values in smoking_status") +
+  theme(legend.position = "none") +
+  theme_bigfont
+
+p1 + p2
+
+###########################################################
+stroke_data_imp2 <- stroke_data_imp %>%
+  fill(smoking_status) %>%
+  #mutate(across(c(smoking_status)), replace(., is.na(.), "never smoked")) %>%
+  mutate(across(c(hypertension, heart_disease), factor),
+         across(where(is.character), as.factor),
+         across(where(is.factor), as.numeric),
+         stroke = factor(ifelse(stroke == 0, "no", "yes")))
+
+stroke_data_imp2 <- stroke_data_imp2 %>%
+  mutate(bmi = case_when(bmi < 18.5 ~ "underweight",
+                         bmi >= 18.5 & bmi < 25 ~ "normal weight",
+                         bmi >= 25 & bmi < 30 ~ "overweight",
+                         bmi >= 30 ~ "obese"),
+         bmi = factor(bmi, levels = c("underweight", "normal weight", "overweight", "obese"), order = TRUE))
+
+
+
+#Only 5% of the people inside the data set had a stroke 
 
 fig(10, 8)
 
@@ -116,7 +177,32 @@ stroke_data_imp2 %>%
   summarize(n = n()) %>%
   mutate(prop = round(n / sum(n), 2))
 
+
+
 #We see that only 5% of all the people in the data set had a stroke at some point.
 #This means that our baseline dummy model has an accuracy of 95%. 
 #That is if we would predict a person to not have a stroke all the time.
+
+
+#Balancing the imbalance
+
+
+# check imbalance ratio
+imbalanceRatio(as.data.frame(stroke_data_imp2), classAttr = "stroke")
+
+stroke_test <- stroke_data_imp2 %>%
+  mutate(
+    stroke = as.character(stroke),
+    across(where(is.factor), as.numeric),
+    stroke = factor(stroke)
+  )
+
+stroke_oversampled <- oversample(as.data.frame(stroke_test), classAttr = "stroke", ratio = 1, method = "MWMOTE")
+
+head(stroke_oversampled)
+
+stroke_oversampled %>%
+  group_by(stroke) %>%
+  summarize(n = n()) %>%
+  mutate(prop = round(n / sum(n), 2))
 

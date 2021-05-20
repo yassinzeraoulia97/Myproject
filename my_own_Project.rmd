@@ -277,6 +277,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 ######random forest
+mm_test <- test %>% select(-stroke)
 
 rfGrid <- data.frame(
   .mtry = c(2,3,5,6),

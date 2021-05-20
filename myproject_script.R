@@ -20,6 +20,12 @@ newdata <- mydata[, c("gender", "age", "hypertension", "heart_disease", "work_ty
 
 head(newdata)
 
-3
+#Check N.A inside different variables
+
+anyNA.data.frame(newdata)
+
+#Summary statistics for each variable inside the dataset 
+
+summary(newdata)
 
 

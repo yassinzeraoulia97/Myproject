@@ -1,14 +1,14 @@
 ---
 title: "My_own_Project"
 author: "Yassin Zeraoulia"
-date: "30 09 2021"
-output: pdf_document
+date: "21 09 2021"
+output: word_document
 ---
 
 #Introduction
 
-According to the World Health Organization (WHO) stroke is the 2nd leading cause of death globally, responsible for approximately 11% of total deaths.
-This dataset is used to predict whether a patient is likely to get stroke based on the input parameters like gender, age, various diseases, and smoking status. Each row in the data provides relavant information about the patient.
+Stroke is the 2nd leading cause of death globally, responsible for approximately 11% of total deaths.
+This dataset is used to predict whether a patient is likely to get stroke based on the input parameters like gender, age, heart diseases, smoking status and other relevant clinical conditions. Each row in the data provides some information about the patient.
 
 VAriable inside the data set:
 1) id: unique identifier
@@ -24,295 +24,306 @@ VAriable inside the data set:
 11) smoking_status: "formerly smoked", "never smoked", "smokes" or "Unknown"*
 12) stroke: 1 if the patient had a stroke or 0 if not
 
-In order to predict effectively if a person is more likely to have a stroke we'll have to take into consideration relevant variables of the data set, some of them are not relevant because they don't have impact on the physiology of the human being.
-Next we'll have to gain some insight from summary statistics of the data set and from the plots that will help visualize some correlation and trends of the variable of the data set.
-Finally we'll implement some predictive model and test them to asses which model is able to predict whit satisfactory accuracy strokes in the population. 
-The first and most simple model that will be implemented is logistic regression while the second one will be based on K-nearest neighbors algorithm. 
+In order to predict  if a person is more likely to have a stroke we'll have to take into consideration relevant variables of the data set, some of them are not relevant because they don't have impact on the physiology of the human being.
+Furthermore we'll have to explore our data set and gain some insight with the use of plots and correlation table.
+After the exploration of the data set we can make some assumption on the relevance of each variable and start thinking about a model able to fit correctly our train data once we divided our data set into train a and test set.
+
+The first model that will be build is based on a classification tree model by wich I'll try to estimate if a patiant has high glucose levels (glucose_cat_tr) using as predictors: "stroke",  "hypertension", "heart_disease","bmi_cat_tr".
+
+The second model that will be implemented is a logistic regression used to predict strokes, this model uses as predictors avg_glucose_level, age, heart_disease, and hypertension.
 
 
 
-```{r Introduction, include=FALSE}
-#Loading the data set, libraries and custum function
+```{r Introduction, loading data set and libraries}
+#Loading the data set and libraries
 
-library(naniar) # handling missing data
-library(skimr) # quick overview over the datase # ML 
-library(MLmetrics) # F1 Score
-library(imbalance) # algorithms to deal with imbalanced datasets
-library(gridExtra) # display plots in grids
-library(patchwork) # arrange plots side by side
 library(tidyverse)
 library(dslabs)
 library(ggplot2)
 library(caret)
 library(readr)
 library(dplyr)
+library(corrplot)
+library(reshape2)
+library(ggplot2)
+library(rsample)
+library(caret)
+library(data.table)
+library(FactoMineR)
+library(viridis)
+library(rattle)
+library(mice)
+library(VIM)
+library(VGAM)
+library(pROC)
+
+#data exploration
+
 healthcare_dataset_stroke_data <- read_csv("healthcare-dataset-stroke-data.csv")
 
-# set a seed for reproducible results
-set.seed(88)
-# custom plot size function
-fig <- function(width, heigth){
-  options(repr.plot.width = width, repr.plot.height = heigth)
-}
+data <- as.data.frame(healthcare_dataset_stroke_data)
 
-## ggplot custom theme
-theme_bigfont <- theme(plot.title = element_text(size=22),
-                       axis.text.x= element_text(size=15),
-                       axis.text.y= element_text(size=15), 
-                       axis.title=element_text(size=18),
-                       legend.text = element_text(size = 14))
-# read data into R
-stroke_data <- healthcare_dataset_stroke_data
+str(data)
 
-# check the first few rows
-head(stroke_data)
-
-# summary of the data
-
-summary(stroke_data)
+data <- unique(data)
+data <- na.omit(data)
 
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-We start by removing unnecessary variable inside the dataset and by checking wheter NA are present in the data set.
-We see that we have 1544 unknown values for smoking status and therefore are missing a lot of information in a potentially informative predictor.
-
-```{r cleaning data set}
-# how many "N/A" values are in my dataset per column?
-miss_scan_count(data = stroke_data, search = list("N/A", "Unknown"))
-
-#There are 201 "N/A" values in the bmi column that likely caused this column to be parsed as character, although it should be numerical.
-
-
-###there are a lot of "Unknown" values in smoking_status
-
-fig(15, 8)
-
-stroke_data %>%
-  group_by(smoking_status) %>%
-  summarise(count = length(smoking_status)) %>%
-  mutate(smoking_status = factor(smoking_status)) %>%
-  ggplot(aes(x = fct_reorder(smoking_status, count), y = count, fill = factor(ifelse(smoking_status=="Unknown","Unknown","Known")))) +
-  geom_col() +
-  geom_text(aes(label = count, x = smoking_status, y = count), size = 6, hjust = 1.5) +
-  coord_flip() +
-  scale_fill_manual(values = c("Unknown" = "green", "Known" = "darkgrey")) +
-  labs(x = "smoking status") +
-  theme(legend.position = "none") +
-  theme_bigfont
+We start by removing unnecessary variable inside the dataset and turning some variables in a preferable data type.
 
 
 
-# replace the "N/A" in bmi
-stroke_data_clean <- replace_with_na(data = stroke_data, replace = list(bmi = c("N/A"), smoking_status = c("Unknown"))) %>%
-  # change bmi to numeric 
-  mutate(bmi = as.numeric(bmi))
+```{r Select relevant variable}
 
-# check
-summary(stroke_data_clean)
-unique(stroke_data_clean$smoking_status)
+#Remove unnecessary columns from the dataset and changing some data type 
+
+data <- data %>% select( "gender", "age", "hypertension", "heart_disease", "Residence_type","avg_glucose_level", "bmi", "smoking_status","stroke")
+
+
+data$gender <- as.factor(data$gender)
+data$smoking_status <- as.factor(data$smoking_status)
+data$Residence_type <- as.factor(data$Residence_type)
 
 
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+#Data exploration 
 
-Now we can gain some initial insight on the variables inside the data set by generating some plots and analizyng distributions  of the data set:
+Now we can gain some initial insight on the variables inside the data set by generating some plots and analizyng distributions  of the data set.
+
+The first plot gives us some idea on the distribution of strokes by age and gender, is clear that there is a problem in the data points gathered because around the age of 25 there is an increase of strokes in the "other" gender category. This can have an impact on the estimation of correlation between variables and the performance of the models that will be built.
+
+The second plot rappresent the correlation between tree variables: heart disease, hypertension and age. 
+
+The third plot is a correlation between bmi and avg_glucose_level.
+
+
+
+```{r plots }
+
+
+#Data exploration 
+
+data %>% ggplot(aes(age,fill = gender)) +
+  geom_histogram(alpha =0.5, aes(y = ..density..),col="black", bins = 10) +
+  theme(legend.title=element_text(family="Times",size=20),
+        legend.text=element_text(family="Times",face ="italic",size=15),
+        plot.title=element_text(family="Times", face="bold", size=20),
+        axis.title.x=element_text(family="Times", face="bold", size=12),
+        axis.title.y=element_text(family="Times", face="bold", size=12)) +
+  xlab("age") +
+  ylab("cases") +
+  ggtitle("Strokes distribution per age and gender")
+
+data$avg_glucose_level <- as.numeric(data$avg_glucose_level)
+data$bmi <- as.numeric(data$bmi)
+#as we can see there is some  positive correlation between age, hypertention and heart disease
+#From this plot the correletion dosen't seems to bee as high as expected 
+
+corrplot(cor(data[,2:4],method ="pearson"),diag =FALSE,
+         title ="Correlation Plot", method ="ellipse",
+         tl.cex =0.7, tl.col ="black", cl.ratio =0.2
+)
+
+#as expected even between bmi and glucose levels there is a slightly positive correlation
+
+corrplot(cor(data[,6:7],method ="pearson", use = "na.or.complete"),diag =FALSE,
+         title ="Correlation Plot", method ="ellipse",
+         tl.cex =0.7, tl.col ="black", cl.ratio =0.2
+)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The variable describing the smoking status could be really helpful, the problem here is that the percentage of strokes in the data set is really small so is not really easy to notice a correlation between stroke and smoking status. Some patiant who had a stroke were not smokers, were not old, had no heart disease or hypertension; this make building a predictive model using this data set not really easy. 
+
+```{r plot smoking status/stroke  and age strokes with colour rappresenting smoking status}
+
+data %>% ggplot(aes(stroke, fill = smoking_status)) +
+  geom_bar(alpha =2, col="black") +
+  theme(legend.title=element_text(family="Times",size=20),
+        legend.text=element_text(family="Times",face ="italic",size=15),
+        plot.title=element_text(family="Times", face="bold", size=20),
+        axis.title.x=element_text(family="Times", face="bold", size=12),
+        axis.title.y=element_text(family="Times", face="bold", size=12)) +
+  xlab("stroke") +
+  ylab("cases") +
+  ggtitle("Strokes and smoking status")
+
+data %>% ggplot(aes(age, fill = smoking_status)) +
+  geom_density(alpha =0.5, stat = "count", na.rm = TRUE, width = 5, position = "stack") +
+  theme(legend.title=element_text(family="Times",size=20),
+        legend.text=element_text(family="Times",face ="italic",size=15),
+        plot.title=element_text(family="Times", face="bold", size=20),
+        axis.title.x=element_text(family="Times", face="bold", size=12),
+        axis.title.y=element_text(family="Times", face="bold", size=12)) +
+  xlab("age") +
+  ylab("cases") +
+  ggtitle("Age and smoking status")
+
+knitr::opts_chunk$set(echo = TRUE)
+```
 
 The distribution of bmi is right skewed (long tail to the right). Because this is the only variable with missing data (at least of the numerical variables) we can impute the median on the missing data without losing too much information. 
 
-
-```{r}
-
-
-# check distribution of bmi
-ggplot(stroke_data_clean, aes(x = bmi)) +
-  geom_histogram() +
-  labs(title = "Distribution of BMI") +
-  theme_bigfont
-
-
-
-# impute median and bind shadow to evaluate imputation
-stroke_data_imp <- bind_shadow(stroke_data_clean) %>% 
-  impute_median_at(.vars = c("bmi")) %>%
-  add_label_shadow()
-
-# Explore the median values in bmi in the imputed dataset
-ggplot(stroke_data_imp, 
-       aes(x = bmi_NA, y = bmi)) + 
-  geom_boxplot() +
-  labs(title = "Comparison, no-missing vs. imputed values for BMI") +
-  theme_bigfont
-
-
-stroke_data_imp <- impute_median_at(stroke_data_clean, .vars = c("bmi"))
-
-
-fig(16,8)
-
-p1 <- ggplot(stroke_data_imp, 
-             aes(x = smoking_status, fill = smoking_status)) + 
-  geom_bar() +
-  labs(title = "Before filling in NA values in smoking_status") +
-  theme(legend.position = "none") +
-  theme_bigfont
-
-# fill imputation based on previous unique value in "smoking_status" column
-after <- stroke_data_imp %>% 
-  fill(smoking_status)
-# mode imputation which leads to worse performance of models:
-#mutate(across(c(smoking_status)), replace(., is.na(.), "never smoked"))
-
-# Explore the median values in bmi in the imputed dataset
-p2 <- ggplot(after, 
-             aes(x = smoking_status, fill = smoking_status)) + 
-  geom_bar() +
-  labs(title = "After filling in NA values in smoking_status") +
-  theme(legend.position = "none") +
-  theme_bigfont
-
-p1 + p2
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-Here we link  each values of some variable to the respective categorical values.In particular we convert bmi from a continuous variable to a factor according to the bmi categories of the CDC.This will be useful running the random forest mode, it will increase slightly the performance.
-
-```{r}
-stroke_data_imp2 <- stroke_data_imp %>%
-  fill(smoking_status) %>%
-  mutate(across(c(smoking_status)), replace(., is.na(.), "never smoked")) %>%
-  mutate(across(c(hypertension, heart_disease), factor),
-         across(where(is.character), as.factor),
-         across(where(is.factor), as.numeric),
-         stroke = factor(ifelse(stroke == 0, "no", "yes")))
-
-stroke_data_imp2 <- stroke_data_imp2 %>%
-  mutate(bmi = case_when(bmi < 18.5 ~ "underweight",
-                         bmi >= 18.5 & bmi < 25 ~ "normal weight",
-                         bmi >= 25 & bmi < 30 ~ "overweight",
-                         bmi >= 30 ~ "obese"),
-         bmi = factor(bmi, levels = c("underweight", "normal weight", "overweight", "obese"), order = TRUE))
-
-knitr::opts_chunk$set(echo = TRUE)
-```
-
 Only 5% of the people inside the data set had a stroke, This means that our baseline dummy model has an accuracy of 95%.That is if we would predict a person to not have a stroke all the time.
 
+The distribution of avg_glucose_level and bmi dosen't seem to be normal as we cann asses with plot and the Shapiro-Wilk normality test.
+
 ```{r}
-#Only 5% of the people inside the data set had a stroke 
 
-fig(10, 8)
+data <- as.data.table(data)
 
-# plot prop of people who had a stroke
-stroke_data_imp2 %>%
-  select(stroke) %>%
-  ggplot(aes(x = stroke)) +
-  geom_bar() +
-  theme_bigfont
+str(data)
 
-# count how many people had a stroke and the prop
-stroke_data_imp2 %>%
-  group_by(stroke) %>%
-  summarize(n = n()) %>%
-  mutate(prop = round(n / sum(n), 2))
+#The histogram of glucose leveles and bmi is not normally distributed in a 
+#traditional bell-shape and the Q-Q plot poorly resembles a straight y = x line.
+
+par(mfrow = c(1,2))
+hist(data$avg_glucose_level, 100)
+qqnorm(data$avg_glucose_level)
+
+par(mfrow = c(1,2))
+hist(data$bmi, 100)
+qqnorm(data$bmi)
+
+#Shapiro-Wilk normality test, we see the p-value is significant, and thus we reject the null hypothesis of normal data
+
+shapiro.test(data$bmi)
+shapiro.test(data$avg_glucose_level[1:5000])
 knitr::opts_chunk$set(echo = TRUE)
 
 ```
 
-We go further balancing the imbalance
+This plot rappresent the missing values inside the data set:
 
-```{r}
-# check imbalance ratio
-imbalanceRatio(as.data.frame(stroke_data_imp2), classAttr = "stroke")
+```{r missing values}
+#Missing data in the data set
 
-stroke_test <- stroke_data_imp2 %>%
-  mutate(
-    stroke = as.character(stroke),
-    across(where(is.factor), as.numeric),
-    stroke = factor(stroke)
-  )
-
-stroke_oversampled <- oversample(as.data.frame(stroke_test), classAttr = "stroke", ratio = 1, method = "MWMOTE")
-
-head(stroke_oversampled)
-
-stroke_oversampled %>%
-  group_by(stroke) %>%
-  summarize(n = n()) %>%
-  mutate(prop = round(n / sum(n), 2))
-
-stroke_data_final <- stroke_oversampled %>% select(-id)
+aggr(data, prop = TRUE,
+    numbers = TRUE)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-In order to build our  model we'll split the data set in two chunk, train (70%) and test (30%)
+In order to build our  model we'll split the data set in two chunk, train (80%) and test (20%)
 
 ```{r}
-# total number of observations
-n_obs <- nrow(stroke_data_final)
+#Split data into train and test set
 
-# shuffle the dataset randomly
-permuted_rows <- sample(n_obs)
+data1 <- initial_split(data = data, prop = 0.8)
 
-# Randomly order data
-stroke_shuffled <- stroke_data_final[permuted_rows,]
 
-# Identify row to split on
-split <- round(n_obs * 0.7)
+data_train <- training(data1)
+data_test <- testing(data1)
 
-# Create train
-train <- stroke_shuffled[1:split,]
-
-# Create test
-test <- stroke_shuffled[(split + 1):nrow(stroke_shuffled),]
-
-# check if train is really 70% of the original 
-nrow(train) / nrow(stroke_data_final)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-#Random forset model
+The following plots give us some insight: in general stroke happens starting from the age of 40, furthermore we can see the yellow point rappresenting people with hypertension (first plot) and heart disease (second plot).
+
+```{plots}
 
 
-```{r}
-######random forest
-mm_test <- test %>% select(-stroke)
+p1 <- ggplot(data = data_train, aes(x = stroke, y= age))
+p1 + geom_point(aes(colour = data_train$hypertension)) +
+  scale_colour_viridis(discrete = FALSE)
 
-rfGrid <- data.frame(
-  .mtry = c(2,3,5,6),
-  .splitrule = "gini",
-  .min.node.size = 5
+p1 <- ggplot(data = data_train, aes(x = stroke, y= age))
+p1 + geom_point(aes(colour = data_train$heart_disease)) +
+  scale_colour_viridis(discrete = FALSE)
+
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Classification tree
+
+With this model the objective was not to predict strokes, I wanted to predict average glucose level using as predictor stroke, hypertension, bmi and heart disease of patients after turning avg_glucose_level and bmi into factor with four levels.
+The results are not great because the model was able to classify the patient into the right category of glucose levels with an efficacy of around 41%.
+
+
+```{classification tree}
+
+
+range(data_train$avg_glucose_level)
+
+data_train$bmi <- as.numeric(data_train$bmi)
+
+data_train$glucose_cat_tr <- cut(data_train$avg_glucose_level, breaks = c(55,80,110,150,271), labels = c("low","normal","high","very high"))
+data_train$bmi_cat_tr <- cut(data_train$bmi, breaks = c(0, 18, 24,29, 100), labels = c("underweight", "normal","overweight","obese") )
+
+data_test$glucose_cat_ts <- cut(data_test$avg_glucose_level, breaks = c(55,80,110,150,271), labels = c("low","normal","high","very high"))
+data_test$bmi_cat_ts <- cut(data_test$bmi, breaks = c(0, 18, 24,29, 100), labels = c("underweight", "normal","overweight","obese") )
+
+set.seed(12345)
+cartModel <- train(x = data_train[, c("stroke",  "hypertension", "heart_disease","bmi_cat_tr")],
+                   y = factor(data_train$glucose_cat_tr),
+                   method = "rpart",
+                   preProcess = NULL,
+                   tuneLength = 10,
+                   trControl = trainControl(method = "cv",
+                                            number = 6
+                   )
 )
 
-rfControl <- trainControl(
-  method = "oob",
-  number = 5,
-  verboseIter = TRUE
-)
+cartModel
 
-rf_model <- train(
-  stroke ~ .,
-  train,
-  method = "ranger",
-  tuneLength = 3,
-  tuneGrid = rfGrid,
-  trControl = rfControl
-)
+plot(cartModel$finalModel)
+text(cartModel$finalModel, cex = 0.5)
+fancyRpartPlot(cartModel$finalModel, cex = 0.4, main = "")
 
-rf_model
-
-
-rf_pred <- predict(rf_model, newdata = mm_test) 
-
-confusionMatrix(rf_pred, factor(test[["stroke"]]), positive = "yes")
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-Error is low for the random forest model, it's accuracy is higher than baseline for all of the mtry parameters.
-The random forest model has an accuracy of (0.97) after evaluating it on the unseen test data. It's recall is also high (0.98) which means it will classify most true negatives correctly. The same goes for classifying true positives (Specificity: 0.96)
+#Logistic regression model predicting strokes 
 
-#Conclusions 
+After fitting the train set to the logistic model it was able to predict the strokes with an accuracy of about 71%.
+
+```{r logistic regression }
 
 
-The random forest model is great at classifying true negative cases, but performs poorly on classifying true positive cases which is what we are interested in (we want to detect people with stroke, so we can be confident in telling a patient they are at risk of stroke when we supply his/her information to the model).
+m.lr <- glm(stroke ~ avg_glucose_level+age+heart_disease+hypertension,
+             family = binomial(link = "logit"),
+             data = data_train, model = TRUE)
+summary(m.lr)
+
+cut_off <-roc(response= data_train$stroke, predictor= m.lr$fitted.values)
+
+
+e <-cbind(cut_off$thresholds,cut_off$sensitivities+cut_off$specificities)
+best_t <-subset(e,e[,2]==max(e[,2]))[,1]
+#Plot ROC Curve
+plot(1-cut_off$specificities,cut_off$sensitivities,type="l",
+     ylab="Sensitivity",xlab="1-Specificity",col="red",lwd=3,
+     main ="ROC Curve for Train")
+abline(a=0,b=1)
+abline(v = best_t) #add optimal t to ROC curve
+
+cat(" The best value of cut-off for classifier is ", best_t)
+
+# Predict the probabilities for test and apply the cut-off
+predict_prob <-predict(m.lr, newdata=data_test, type="response")
+#Apply the cutoff to get the class
+class_pred <-ifelse(predict_prob >0.045,1,0)
+#Classification table
+table(data_test$stroke,class_pred)
+
+#Classification rate
+sum(diag(table(data_test$stroke,class_pred))/nrow(data_test))
+
+#with a logistic regression model we reached 67% good classification on the test data
+
+anova(m.lr, test="Chisq")
+
+#The chi-square test on four of the variables is significant as the p-value is less than 0.05. 
+#4 out of five contributions to the model are significant.
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Conclusion
+
+The objective of building a model that can detect true positive was achived, even though the accuracy is not excellent (71%) the model performed relatively well given that inside the data set only 5% of patients had a stroke and many of them didn't  have hypertension, heart disease and other clinical variable weren't typical of a patient with high probability of strokes.
